@@ -1,0 +1,285 @@
+# 🐛 تقرير شامل لعيوب وأخطاء مشروع MAJMA Frontend
+
+> **التاريخ:** 25 فبراير 2026  
+> **المشروع:** MAJMA Frontend — Vite + React  
+> **إجمالي المشاكل:** 12 مشكلة موزعة على مستويات: 🔴 حرج · 🟠 عالي · 🟡 متوسط · 🔵 منخفض
+
+---
+
+## 🔴 الأخطاء الحرجة (تمنع التطبيق من العمل)
+
+### 1. ملفا API متضاربان — توكن مختلف في كل ملف
+
+| التفاصيل | القيمة |
+|---|---|
+| **الملف الأول** | [api.js](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/api.js) |
+| **الملف الثاني** | [api/axios.js](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/api/axios.js) |
+
+الكود يستخدم ملفين مختلفين لإنشاء الـ Axios instance، وكل ملف يقرأ مفتاح مختلف من `localStorage`:
+
+```diff
+// api.js (الملف الأقدم)
+- localStorage.getItem("access_token")   // يستخدمه Login.jsx وAuthContext
+
+// api/axios.js (الملف الأحدث)
+- localStorage.getItem("access")         // مفتاح مختلف تمامًا!
+```
+
+**النتيجة:** أي صفحة تستورد من `../../api/axios.js` لن تجد التوكن أبدًا لأن Login يحفظه باسم `access_token` وليس `access`. كل الطلبات ستُرفض بـ 401.
+
+**الحل:** احذف [api.js](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/api.js) القديم واستخدم [api/axios.js](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/api/axios.js) فقط، ووحّد اسم المفتاح في `localStorage.setItem` داخل [Login.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Login.jsx).
+
+---
+
+### 2. Route المدرس غير موجود في Router
+
+| الملف | السطر |
+|---|---|
+| [App.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/App.jsx) | 44 |
+| [Login.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Login.jsx) | 44 |
+
+بعد تسجيل دخول المدرس بنجاح، يتم التوجيه إلى `/teacher/dashboard`:
+
+```js
+navigate("/teacher/dashboard"); // Login.jsx:44
+```
+
+لكن هذا المسار **غير معرَّف في [App.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/App.jsx) إطلاقًا**. الصفحة ستُعرض فارغة أو تُعيد توجيهًا غير متوقع. [TeacherDashboard.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/teacher/TeacherDashboard.jsx) و[CreateCourse.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/teacher/CreateCourse.jsx) موجودان لكن لا Route يشير إليهما.
+
+**الحل:** إضافة Route للمدرس في [App.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/App.jsx):
+```jsx
+<Route path="/teacher/dashboard" element={<PrivateRoute allowedType="teacher"><TeacherDashboard /></PrivateRoute>} />
+```
+
+---
+
+### 3. مزوّدو الـ Context (LanguageProvider & ThemeProvider) غير مُغلِّفين التطبيق
+
+| الملف | السطر |
+|---|---|
+| [main.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/main.jsx) | 15 |
+
+[main.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/main.jsx) يُغلّف التطبيق بـ [AuthProvider](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/AuthContext.jsx#4-29) فقط، بينما [ThemeProvider](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/ThemeContext.jsx#5-28) و[LanguageProvider](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/LanguageContext.jsx#60-82) **لا يُستخدمان مطلقًا** في قمة الشجرة:
+
+```jsx
+// main.jsx - المشكلة
+<AuthProvider>
+  <App />
+</AuthProvider>
+// ThemeProvider و LanguageProvider مفقودان!
+```
+
+أي مكوّن يستدعي [useTheme()](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/ThemeContext.jsx#29-30) أو [useLanguage()](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/LanguageContext.jsx#83-84) سيُعيد `null` وسيتعطل.
+
+**الحل:**
+```jsx
+<AuthProvider>
+  <ThemeProvider>
+    <LanguageProvider>
+      <App />
+    </LanguageProvider>
+  </ThemeProvider>
+</AuthProvider>
+```
+
+---
+
+### 4. تضارب في Route `/student` (Duplicate Route)
+
+| الملف | السطور |
+|---|---|
+| [App.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/App.jsx) | 48–74 |
+
+يوجد **Route مكرر** بنفس المسار `/student` يعرّف layout مختلف:
+
+```jsx
+// Route أول — StudentLayout (sidebar)
+<Route path="/student" element={<StudentLayout />}>
+  <Route path="dashboard" ... />
+  ...
+</Route>
+
+// Route ثانٍ — SocialLayout (لا يعمل لأن React Router يأخذ الأول فقط)
+<Route path="/student" element={<SocialLayout />}>
+  <Route path="social" ... />
+  <Route path="profile" ... />
+</Route>
+```
+
+في React Router v6، إذا تطابق مساران، يتم استخدام الأول. نتيجةً لذلك، `/student/social` و`/student/profile` **ستُعرض داخل [StudentLayout](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/layouts/StudentLayout.jsx#5-57) وليس `SocialLayout`**، مما قد يُسبب مشاكل في الـ layout.
+
+**الحل:** دمج كل routes الطالب في Route واحد، أو استخدام مسارات أب مختلفة.
+
+---
+
+## 🟠 الأخطاء العالية (تُحدث سلوكًا خاطئًا)
+
+### 5. رابط course في StudentDashboard خاطئ
+
+| الملف | السطر |
+|---|---|
+| [StudentDashboard.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/student/StudentDashboard.jsx) | 29 |
+
+```jsx
+// StudentDashboard.jsx - رابط خاطئ
+<Link to={`/student/course/${course.id}`}>  // ❌ course (مفرد)
+
+// App.jsx - المسار المعرّف
+<Route path="courses/:id" .../>              // ✅ courses (جمع)
+```
+
+الضغط على أي كورس في الداشبورد سيُوجه إلى صفحة 404.
+
+**الحل:** تغيير الرابط إلى `` `/student/courses/${course.id}` ``
+
+---
+
+### 6. اسم مكوّن Register لا يتطابق مع اسم الـ export
+
+| الملف |
+|---|
+| [Register.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Register.jsx) |
+
+```jsx
+// Register.jsx
+const RegisterPage = () => { ... }   // اسم المكوّن: RegisterPage
+export default RegisterPage;
+
+// App.jsx
+import Register from "./pages/Register";   // يُستخدم باسم: Register
+```
+
+مع أن هذا لن يُسبب خطأ في runtime، إلا أنه يُشوّش الكود ويُعسّر الـ debugging.
+
+---
+
+### 7. `useAuth` غير معرَّف في AuthContext
+
+| الملف | السطر |
+|---|---|
+| [AuthContext.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/AuthContext.jsx) | 1–28 |
+| [ProtectedRoute.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/routes/ProtectedRoute.jsx) | 3 |
+
+[ProtectedRoute.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/routes/ProtectedRoute.jsx) و[Dashboard.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Dashboard.jsx) يستوردان `useAuth`:
+
+```js
+import { useAuth } from '../context/AuthContext';
+```
+
+لكن [AuthContext.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/AuthContext.jsx) **لا يُصدّر `useAuth` hook** على الإطلاق. الملف يصدر فقط `AuthContext` و[AuthProvider](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/AuthContext.jsx#4-29).
+
+**الحل:** إضافة السطر التالي لـ [AuthContext.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/AuthContext.jsx):
+```js
+export const useAuth = () => useContext(AuthContext);
+```
+
+---
+
+### 8. تطبيق الثيم يعمل بطريقتين متضاربتين
+
+| الملف |
+|---|
+| [Login.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Login.jsx) |
+| [Register.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Register.jsx) |
+| [ThemeContext.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/ThemeContext.jsx) |
+
+- [Login.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Login.jsx) و[Register.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Register.jsx) يعتمدان على تبديل class يدوي: `document.body.classList.toggle("dark-mode")`
+- [ThemeContext.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/ThemeContext.jsx) يعتمد على class مختلف: `documentElement.classList.add("dark")`
+
+النتيجة: الثيم يعمل بشكل مختلف في كل صفحة، وإعداد حالة الثيم من `localStorage` لا يُطبَّق عند التحميل الأولي في Login وRegister.
+
+---
+
+## 🟡 الأخطاء المتوسطة (تُؤثر على جودة الكود والتجربة)
+
+### 9. [CourseDetail.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/student/CourseDetail.jsx) يعرض بيانات تجريبية ثابتة (Hardcoded)
+
+| الملف | السطر |
+|---|---|
+| [CourseDetail.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/student/CourseDetail.jsx) | 44–48 |
+
+```jsx
+<span>درس تجريبي داخل الوحدة</span>
+<Link to={`/student/lesson/1`}>مشاهدة</Link>  // ← lesson ID ثابت على 1 دائمًا!
+```
+
+كل الدروس ستُوجه إلى نفس الدرس رقم 1 بدلًا من الدرس الصحيح. الصفحة تجلب `unlockedLessons` لكنها لا تستخدمها.
+
+---
+
+### 10. [Dashboard.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Dashboard.jsx) يحتوي على بيانات وهمية ثابتة
+
+| الملف | السطور |
+|---|---|
+| [Dashboard.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Dashboard.jsx) | 28–55 |
+
+```jsx
+{ label: t.dash_stats_courses, val: "12", ... },  // ← 12 ثابتة!
+{ label: t.dash_stats_hours, val: "48h", ... },    // ← 48h ثابتة!
+// Recent Courses: [1, 2, 3].map(...) — بيانات وهمية تمامًا
+```
+
+الداشبورد العام ([Dashboard.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Dashboard.jsx)) يعرض أرقامًا وهمية ثابتة بدلًا من جلبها من الـ API، ويجلب `theme` من [useLanguage()](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/LanguageContext.jsx#83-84) بدلًا من [useTheme()](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/ThemeContext.jsx#29-30).
+
+---
+
+### 11. ميزة "المتابَعين" في Social.jsx غير مكتملة
+
+| الملف | السطور |
+|---|---|
+| [Social.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Social.jsx) | 13–18 |
+
+```js
+let url = '/posts/';
+if (activeTab === "following") {
+    // نفترض إن عندك فلتر ...
+    // للتبسيط هنستخدم الـ API العادي ← يعني "following" و"home" يجيبان نفس المحتوى!
+}
+api.get(url)...
+```
+
+زر "المتابَعين" موجود في الـ UI لكن يعرض **نفس المنشورات** بدون أي فلترة.
+
+---
+
+### 12. [CustomButton.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/components/CustomButton.jsx) يعتمد على `styled-components` غير مُستخدم في باقي المشروع
+
+| الملف |
+|---|
+| [CustomButton.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/components/CustomButton.jsx) |
+
+كل باقي المشروع يستخدم Tailwind CSS، بينما [CustomButton](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/components/CustomButton.jsx#5-14) وحده يستخدم `styled-components`. هذا يُضيف تبعية إضافية (5MB+) بدون مبرر واضح. والمكوّن لا يُستخدم في أي صفحة على الإطلاق (dead code).
+
+---
+
+## 📊 ملخص المشاكل
+
+| # | المشكلة | الملف | الخطورة |
+|---|---|---|---|
+| 1 | ملفا API متضاربان ومفاتيح توكن مختلفة | [api.js](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/api.js) vs [api/axios.js](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/api/axios.js) | 🔴 حرج |
+| 2 | Route المدرس مفقود من Router | [App.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/App.jsx) | 🔴 حرج |
+| 3 | ThemeProvider وLanguageProvider غير مُغلِّفَيْن | [main.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/main.jsx) | 🔴 حرج |
+| 4 | Route `/student` مكرر (Duplicate Route) | [App.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/App.jsx) | 🔴 حرج |
+| 5 | رابط course في StudentDashboard خاطئ | [StudentDashboard.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/student/StudentDashboard.jsx) | 🟠 عالي |
+| 6 | اسم مكوّن Register غير متسق | [Register.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Register.jsx) | 🟠 عالي |
+| 7 | `useAuth` hook غير مُعلَن في AuthContext | [AuthContext.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/AuthContext.jsx) | 🟠 عالي |
+| 8 | تعارض آليتَيْ الثيم (dark-mode vs dark) | [Login.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Login.jsx), [ThemeContext.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/context/ThemeContext.jsx) | 🟠 عالي |
+| 9 | lesson ID ثابت (hardcoded) في CourseDetail | [CourseDetail.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/student/CourseDetail.jsx) | 🟡 متوسط |
+| 10 | بيانات وهمية ثابتة في Dashboard | [Dashboard.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Dashboard.jsx) | 🟡 متوسط |
+| 11 | ميزة "المتابَعين" غير مكتملة في Social | [Social.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/pages/Social.jsx) | 🟡 متوسط |
+| 12 | [CustomButton](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/components/CustomButton.jsx#5-14) كود ميت يستخدم مكتبة إضافية | [CustomButton.jsx](file:///c:/Users/ABU%20EL%203EZZ/Downloads/MAJMA-FRONTEND-main/frontend/src/components/CustomButton.jsx) | 🔵 منخفض |
+
+---
+
+## ✅ أولوية الإصلاح المقترحة
+
+```mermaid
+graph TD
+    A[🔴 1. توحيد ملف API واسم التوكن] --> B[🔴 2. إضافة Route المدرس]
+    B --> C[🔴 3. إضافة ThemeProvider+LanguageProvider في main.jsx]
+    C --> D[🔴 4. إصلاح Duplicate Route]
+    D --> E[🟠 5. تصدير useAuth من AuthContext]
+    E --> F[🟠 6. إصلاح رابط course في StudentDashboard]
+    F --> G[🟠 7. توحيد آلية الثيم]
+    G --> H[🟡 8. إصلاح lesson ID في CourseDetail]
+```
