@@ -25,14 +25,14 @@ const projects = [
   },
   {
     id: 3,
-    title: 'English Teacher',
-    subtitle: 'English Teacher Portifolio',
-    desc: 'A clean personal portfolio website built for an English teacher using vanilla HTML, CSS, and JavaScript. Showcases the teacher\'s profile, skills, and services in a structured, responsive single-page layout. Hosted on GitHub Pages as a real-world client-style project demonstrating front-end fundamentals.',
-    tags: ['HTML5', 'CSS3', 'JavaScript'],
+    title: 'Reflecto',
+    subtitle: 'website for reflecto company',
+    desc: 'Architected a high-performance, bilingual (EN/AR) React 19 portal featuring an interactive CRM scheduler, live analytics, and Tabby/Tamara BNPL integrations. Optimized performance and API sync utilizing Vite 6 and TanStack Query, while implementing a custom silent JWT token-refresh pipeline for robust security.',
+    tags: ['React', 'TypeScript', 'Tailwind CSS'],
     gradient: 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)',
-    path: '/images/teacher portifolio.png',
-    github: 'https://github.com/Mostafa-khaled-osman/English-teacher-portifolio',
-    live: 'https://mostafa-khaled-osman.github.io/English-teacher-portifolio/',
+    path: '/images/reflecto.png',
+    github: 'https://github.com/Mostafa-khaled-osman/reflecto-premium',
+    live: 'https://reflecto.com.sa/',
   },
 ]
 
